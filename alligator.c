@@ -136,12 +136,14 @@ void *thread_main(void *args) {
     void *ptr[256];
     size_t block_size = 16;
     int numblocks = 256;
-    int good = 1;
+    int *good = (int *)malloc(sizeof(int));
+    *good = 1;
 
     for (int i=0; i < numblocks; i++) {
         ptr[i] = alloc_check(block_size);
         if (ptr[i] == NULL) {
-            return (void *)0;
+            *good = 0;
+            return (void *)good;
         }
     }
 
@@ -151,7 +153,8 @@ void *thread_main(void *args) {
 
     coalesce_freelist(__head);
 
-    return (void *)1;
+    *good = 1;
+    return (void *)good;
 }
 
 int main(int argc, char *argv[])
@@ -386,7 +389,7 @@ int main(int argc, char *argv[])
 	// Reset heap
 	destroy_heap();
 
-    int numthreads = 4;
+    int numthreads = 1;
     pthread_t *threads = NULL;
 
     threads = (pthread_t *)malloc(sizeof(pthread_t) * numthreads);
@@ -399,14 +402,19 @@ int main(int argc, char *argv[])
 
     for (int i = 0; i < numthreads; i++) {
         int *p;
-        pthread_join(threads[i], (void*)p);
-        if (&p == 0) {
-            printf("Threaded test failed :(\n");
+        pthread_join(threads[i], (void**)&p);
+        if (*p == 0) {
+            printf("Threaded test failed during threads :(\n");
             return 1;
         }
     }
 
-    printf("Threaded test looks like it is working :)\n");
+    freelist[0] = HEAPSIZE - nodesize;
+    if (complete_state_check(__head, freelist, 1, ptr, 0, sizes)) {
+        printf("Thread test: Looks like everything is working :)\n");
+    } else {
+        printf("Thread test failed after threads :(\n");
+    }
 
 	return 0;
 }
