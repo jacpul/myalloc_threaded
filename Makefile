@@ -8,7 +8,7 @@ TARG = alligator
 CC = gcc
 OPTS = -Wall -O
 OBJS = $(SRCS:.c=.o)
-LIBS = -lm # placeholder - not needed for forksort
+LIBS = -lm -lpthread # placeholder - not needed for forksort
 
 # 'all' is not really needed
 all: $(TARG)

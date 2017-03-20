@@ -1,6 +1,9 @@
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <pthread.h>
+#include <string.h>
 #include "myalloc.h"
 
 
@@ -129,6 +132,28 @@ int complete_state_check(node_t* head, int* freelist, int freelist_size, void** 
 	return 1;
 }
 
+void *thread_main(void *args) {
+    void *ptr[256];
+    size_t block_size = 16;
+    int numblocks = 256;
+    int good = 1;
+
+    for (int i=0; i < numblocks; i++) {
+        ptr[i] = alloc_check(block_size);
+        if (ptr[i] == NULL) {
+            return (void *)0;
+        }
+    }
+
+    for (int i=0; i < numblocks; i++) {
+        myfree(ptr[i]);
+    }
+
+    coalesce_freelist(__head);
+
+    return (void *)1;
+}
+
 int main(int argc, char *argv[])
 {
 	// Set up random number generator.
@@ -172,7 +197,7 @@ int main(int argc, char *argv[])
 	// TEST 2: Test advanced alloc
 	ptr[0] = alloc_check(1024);
 	ptr[1] = alloc_check(1024);
-	ptr[2] = alloc_check(3000);
+	ptr[2] = alloc_check(HEAPSIZE);
 	ptr[3] = alloc_check(512);
 	sizes[0] = 1024;
 	sizes[1] = 1024;
@@ -357,6 +382,31 @@ int main(int argc, char *argv[])
 		printf("Test 7.3: You have a memory leak! Or you are not using memory optimally. This is bad :(\n");
 		return 1;
 	}
+
+	// Reset heap
+	destroy_heap();
+
+    int numthreads = 4;
+    pthread_t *threads = NULL;
+
+    threads = (pthread_t *)malloc(sizeof(pthread_t) * numthreads);
+
+    assert(threads != NULL);
+
+    for (int i = 0; i < numthreads; i++) {
+        pthread_create(&threads[i], NULL, thread_main, NULL);
+    }
+
+    for (int i = 0; i < numthreads; i++) {
+        int *p;
+        pthread_join(threads[i], (void*)p);
+        if (&p == 0) {
+            printf("Threaded test failed :(\n");
+            return 1;
+        }
+    }
+
+    printf("Threaded test looks like it is working :)\n");
 
 	return 0;
 }
