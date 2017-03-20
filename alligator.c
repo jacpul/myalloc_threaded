@@ -200,8 +200,8 @@ int main(int argc, char *argv[])
 	// TEST 2: Test advanced alloc
 	ptr[0] = alloc_check(1024);
 	ptr[1] = alloc_check(1024);
-	ptr[2] = alloc_check(HEAPSIZE);
 	ptr[3] = alloc_check(512);
+	ptr[2] = alloc_check(HEAPSIZE-2560);
 	sizes[0] = 1024;
 	sizes[1] = 1024;
 	sizes[2] = -1;   // NULL
@@ -389,7 +389,7 @@ int main(int argc, char *argv[])
 	// Reset heap
 	destroy_heap();
 
-    int numthreads = 1;
+    int numthreads = 4;
     pthread_t *threads = NULL;
 
     threads = (pthread_t *)malloc(sizeof(pthread_t) * numthreads);
