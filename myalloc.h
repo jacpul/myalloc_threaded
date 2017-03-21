@@ -2,7 +2,7 @@
 #define __MYALLOC_H
 
 
-#define HEAPSIZE 65536
+#define HEAPSIZE 16777216
 #define HEAPMAGIC 0x10c0beefbad1dea5
 
 /* linked list element */
