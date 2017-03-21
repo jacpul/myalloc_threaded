@@ -43,7 +43,7 @@ void print_freelist_from(node_t *node)
 	}
 }
 
-inline void coalesce_freelist(node_t *listhead)
+inline void coalesce_freelist()
 {
 	/* coalesce all neighboring free regions in the free list */
 
