@@ -486,6 +486,7 @@ int main(int argc, char *argv[])
             printf("Threaded test failed during threads :(\n");
             return 1;
         }
+        free(p);
     }
 
     freelist[0] = HEAPSIZE - nodesize;
@@ -526,6 +527,7 @@ int main(int argc, char *argv[])
             printf("Heavy Threaded test: Failed during threads :(\n");
             return 1;
         }
+        free(p);
     }
 
     clock_gettime(CLOCK_REALTIME, &end);
@@ -540,6 +542,12 @@ int main(int argc, char *argv[])
     }
 
     printf("Time: %f seconds with seed: %d\n", elapsed, seed);
+
+    // Clean up
+    destroy_heap();
+    free(load.coalesce_order);
+    free(load.free_order);
+    free(threads);
 
     return 0;
 }
