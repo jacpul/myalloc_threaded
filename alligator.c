@@ -200,6 +200,13 @@ void *thread_main2(void *args) {
     }
 
     for (int i=0; i < load->num_of_allocs; i++) {
+        if (!is_data_good((char*)ptr[i], load->block_size)) {
+            *good = 0;
+            return (void*)good;
+        }
+    }
+
+    for (int i=0; i < load->num_of_allocs; i++) {
         myfree(ptr[load->free_order[i]]);
         if (load->coalesce_order[i]) {
             coalesce_freelist();
