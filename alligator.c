@@ -20,7 +20,7 @@
 
 struct workload {
     int *free_order;      // An array with num_of_allocs indexes. Workload should be freed in this order.
-    int *coalesce_order;  // An array with num_of_allocs 1s or 0s. If 1 coalesce will be call after the free.
+    int *coalesce_order;  // An array with num_of_allocs 1s or 0s. If 1 coalesce will be called after the free.
     uint num_of_allocs;   // Number of allocs.
     size_t block_size;      // Size of each alloc.
 };
@@ -187,6 +187,28 @@ int complete_state_check(node_t *head, int *freelist, int freelist_size, void **
     return 1;
 }
 
+void *thread_main(void *args) {
+    int numblocks = 256;
+    void *ptr[numblocks];
+    size_t block_size = 16;
+    int *good = (int *) malloc(sizeof(int));
+    *good = 1;
+
+    for (int i = 0; i < numblocks; i++) {
+        ptr[i] = alloc_check(block_size);
+        if (ptr[i] == NULL) {
+            *good = 0;
+            return (void *) good;
+        }
+    }
+
+    for (int i = 0; i < numblocks; i++) {
+        myfree(ptr[i]);
+    }
+
+    return (void *) good;
+}
+
 void *thread_main2(void *args) {
     struct workload *load = (struct workload *) args;
     int *good = (int *) malloc(sizeof(int));
@@ -221,33 +243,9 @@ void *thread_main2(void *args) {
     return (void *) good;
 }
 
-void *thread_main(void *args) {
-    void *ptr[256];
-    size_t block_size = 16;
-    int numblocks = 256;
-    int *good = (int *) malloc(sizeof(int));
-    *good = 1;
-
-    for (int i = 0; i < numblocks; i++) {
-        ptr[i] = alloc_check(block_size);
-        if (ptr[i] == NULL) {
-            *good = 0;
-            return (void *) good;
-        }
-    }
-
-    for (int i = 0; i < numblocks; i++) {
-        myfree(ptr[i]);
-    }
-
-    coalesce_freelist();
-
-    return (void *) good;
-}
-
 int main(int argc, char *argv[]) {
     int start_test = 1;
-    int end_test = 10;
+    int end_test = 12;
     int cur_test;
     // Parse args
     if (argc > 2) {
@@ -262,9 +260,9 @@ int main(int argc, char *argv[]) {
     int seed = time(NULL); // get current time for seed
     srand(seed);
 
-    void *ptr[100];
-    int freelist[100];
-    int sizes[100];
+    void *ptr[1024];
+    int freelist[1024];
+    int sizes[1024];
     int numthreads = 4;
     int nodesize = sizeof(node_t);
     int headersize = sizeof(header_t);
@@ -282,6 +280,7 @@ int main(int argc, char *argv[]) {
     printf("node_t:\t\t%lu\n", sizeof(node_t));
     printf("header_t:\t%lu\n", sizeof(header_t));
     printf("numthreads:\t%d\n", numthreads);
+    printf("heap size:\t%d\n", HEAPSIZE);
 
     struct timespec start, end;
     clock_gettime(CLOCK_REALTIME, &start);
@@ -549,7 +548,68 @@ int main(int argc, char *argv[]) {
                     int *p;
                     pthread_join(threads[i], (void **) &p);
                     if (*p == 0) {
-                        printf("Threaded test failed during threads :(\n");
+                        printf("Test 9 (Threaded test without coalesce): failed during threads :(\n");
+                        return 1;
+                    }
+                    free(p);
+                }
+
+                printf("Test 9 (Threaded test without coalesce): Looks like everything is working :)\n");
+                break;
+
+            case 10:
+                load.num_of_allocs = 10000;
+                load.block_size = 16;
+                load.coalesce_order = (int *) malloc(load.num_of_allocs * sizeof(int));
+                load.free_order = (int *) malloc(load.num_of_allocs * sizeof(int));
+
+                for (i = 0; i < load.num_of_allocs; i++) {
+                    load.free_order[i] = i;
+                    load.coalesce_order[i] = 0;
+                }
+
+                shuffle(load.free_order, load.num_of_allocs);
+
+
+                for (i = 0; i < numthreads; i++) {
+                    pthread_create(&threads[i], NULL, thread_main2, (void *) &load);
+                }
+
+                for (i = 0; i < numthreads; i++) {
+                    int *p;
+                    pthread_join(threads[i], (void **) &p);
+                    if (*p == 0) {
+                        printf("Test 10 (Heavy Threaded test without coalesce): Failed during threads :(\n");
+                        return 1;
+                    }
+                    free(p);
+                }
+
+
+                freelist[0] = HEAPSIZE - nodesize;
+                if (complete_state_check(__head, freelist, 1, ptr, 0, sizes)) {
+                    printf("Test 10 (Heavy Threaded test without coalesce): Looks like everything is working :)\n");
+                } else {
+                    printf("Test 10 (Heavy Threaded test without coalesce): Failed after threads joined :(\n");
+                    return 1;
+                }
+
+                free(load.coalesce_order);
+                free(load.free_order);
+                break;
+
+            case 11:
+                assert(threads != NULL);
+                for (i = 0; i < numthreads; i++) {
+                    pthread_create(&threads[i], NULL, thread_main, NULL);
+                }
+
+                for (i = 0; i < numthreads; i++) {
+                    int *p;
+                    pthread_join(threads[i], (void **) &p);
+                    coalesce_freelist();
+                    if (*p == 0) {
+                        printf("Test 11 (Threaded test): failed during threads :(\n");
                         return 1;
                     }
                     free(p);
@@ -557,13 +617,13 @@ int main(int argc, char *argv[]) {
 
                 freelist[0] = HEAPSIZE - nodesize;
                 if (complete_state_check(__head, freelist, 1, ptr, 0, sizes)) {
-                    printf("Thread test: Looks like everything is working :)\n");
+                    printf("Test 11 (Thread test): Looks like everything is working :)\n");
                 } else {
-                    printf("Thread test failed after threads :(\n");
+                    printf("Test 11 (Thread test): failed after threads :(\n");
                 }
                 break;
 
-            case 10:
+            case 12:
                 load.num_of_allocs = 10000;
                 load.block_size = 16;
                 load.coalesce_order = (int *) malloc(load.num_of_allocs * sizeof(int));
@@ -585,7 +645,7 @@ int main(int argc, char *argv[]) {
                     int *p;
                     pthread_join(threads[i], (void **) &p);
                     if (*p == 0) {
-                        printf("Heavy Threaded test: Failed during threads :(\n");
+                        printf("Test 12 (Heavy Thread test): Failed during threads :(\n");
                         return 1;
                     }
                     free(p);
@@ -594,14 +654,15 @@ int main(int argc, char *argv[]) {
 
                 freelist[0] = HEAPSIZE - nodesize;
                 if (complete_state_check(__head, freelist, 1, ptr, 0, sizes)) {
-                    printf("Heavy Threaded test: Looks like everything is working :)\n");
+                    printf("Test 12 (Heavy Thread test): Looks like everything is working :)\n");
                 } else {
-                    printf("Heavy Threaded test: Failed after threads joined :(\n");
+                    printf("Test 12 (Heavy Thread test): Failed after threads joined :(\n");
                     return 1;
                 }
 
                 free(load.coalesce_order);
                 free(load.free_order);
+                break;
         }
         destroy_heap();
     }
