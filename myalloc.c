@@ -10,12 +10,12 @@
 void *__heap = NULL;
 node_t *__head = NULL;
 
-inline header_t *get_header(void *ptr)
+header_t *get_header(void *ptr)
 {
 	return (header_t *)(ptr - sizeof(header_t));
 }
 
-inline void print_header(header_t *header)
+void print_header(header_t *header)
 {
 	printf("[header_t @ %p | buffer @ %p size: %lu magic: %08lx]\n", 
 		   header, 
@@ -24,7 +24,7 @@ inline void print_header(header_t *header)
 		   header->magic);
 }
 
-inline void print_node(node_t *node)
+void print_node(node_t *node)
 {
 	printf("[node @ %p | free region @ %p size: %lu next: %p]\n", 
 		   node, 
@@ -43,7 +43,7 @@ void print_freelist_from(node_t *node)
 	}
 }
 
-inline void coalesce_freelist()
+void coalesce_freelist()
 {
 	/* coalesce all neighboring free regions in the free list */
 
@@ -76,7 +76,7 @@ void destroy_heap()
  * our memory allocator, we have to allocate our heap manually, using malloc().
  * YOU MUST NOT ADD MALLOC CALLS TO YOUR FINAL PROGRAM!
  */
-inline void init_heap()
+void init_heap()
 {
 	/* FOR OFFICE USE ONLY */
 
@@ -87,7 +87,7 @@ inline void init_heap()
 	}
 
 	__head = (node_t*)__heap;
-	__head->size = HEAPSIZE - sizeof(header_t);
+	__head->size = HEAPSIZE - sizeof(node_t);
 	__head->next = NULL;
 
 	if (DEBUG) printf("heap: %p\n", __heap);

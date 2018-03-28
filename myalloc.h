@@ -20,8 +20,8 @@ typedef struct __header_t {
 extern void *__heap; /* pointer to the start of our "heap" */
 extern node_t *__head; /* the 'head' pointer for our freelist */
 
-inline void print_header(header_t *header); /* print out header */
-inline void print_node(node_t *node);	/* print out node */
+void print_header(header_t *header); /* print out header */
+void print_node(node_t *node);	/* print out node */
 void print_freelist_from(node_t *node); /* print freelist from node to NULL */
 void destroy_heap(); /* destroy current heap (reset function) */
 void *myalloc(size_t size); /* our new malloc-alike function */
