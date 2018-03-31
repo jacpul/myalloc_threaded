@@ -556,7 +556,7 @@ int main(int argc, char *argv[]) {
                 break;
 
             case 10:
-                load.num_of_allocs = 10000;
+                load.num_of_allocs = 1000;
                 load.block_size = 16;
                 load.coalesce_order = (int *) malloc(load.num_of_allocs * sizeof(int));
                 load.free_order = (int *) malloc(load.num_of_allocs * sizeof(int));
@@ -616,7 +616,7 @@ int main(int argc, char *argv[]) {
                 break;
 
             case 12:
-                load.num_of_allocs = 10000;
+                load.num_of_allocs = 1000;
                 load.block_size = 16;
                 load.coalesce_order = (int *) malloc(load.num_of_allocs * sizeof(int));
                 load.free_order = (int *) malloc(load.num_of_allocs * sizeof(int));
