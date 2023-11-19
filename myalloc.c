@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "myalloc.h"
+#include <pthread.h>
 
 /* change me to 1 for more debugging information
  * change me to 0 for time testing and to clear your mind
@@ -8,6 +9,7 @@
 #define DEBUG 1
 void *__heap = NULL;
 node_t *__head = NULL;
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 header_t *get_header(void *ptr) {
   return (header_t *) (ptr - sizeof(header_t));
@@ -38,52 +40,65 @@ void print_freelist_from(node_t *node) {
 }
 
 void sort_freelist() {
-  node_t *cur = __head;
-  node_t *sorted = NULL;
 
-  while (cur != NULL) {
-    node_t *next = cur->next;
-    if (sorted == NULL || (char*)cur < (char*)sorted) {
-      cur->next = sorted;
-      sorted = cur;
-    } else {
-      node_t *sortedCur = sorted;
-      while (sortedCur->next != NULL && (char*)sortedCur->next < (char*)cur) {
-        sortedCur = sortedCur->next;
-      }
-      cur->next = sortedCur->next;
-      sortedCur->next = cur;
-    }
-    cur = next;
+  if (!__head || !__head->next) {
+        return;  
   }
 
-  __head = sorted; // Update the head of the free list
+  int swapped;
+  node_t *ptr;
+  node_t *lptr = NULL;
+
+
+ do {
+  swapped = 0;
+  ptr = __head;
+
+  while (ptr->next != lptr) {
+    if (ptr > ptr->next) {
+      // Swap the nodes (not the actual memory, just the nodes in our list)
+      node_t *temp = ptr->next;
+      ptr->next = ptr->next->next;
+      temp->next = ptr;
+
+      // Fix the previous node's next pointer
+      if (ptr == __head) {
+        __head = temp;
+      } 
+      else
+      {
+        node_t *prev = __head;
+        while (prev->next != ptr) {
+          prev = prev->next;
+        }
+        prev->next = temp;
+        }
+
+        swapped = 1;
+        } else {
+          ptr = ptr->next;
+          }
+        }
+
+        lptr = ptr;
+    } 
+    while (swapped);
 }
 
 void coalesce_freelist() 
 {
   node_t *current = __head;
-  node_t *previous = NULL;
 
-  sort_freelist();
-
-  while (current != NULL) 
-  {      
-    if (previous != NULL && (char *)previous + previous->size + sizeof(header_t) == (char *)current)
-    {
+  while (current != NULL && current->next != NULL) {
+    char *current_end = (char *)current + sizeof(node_t) + current->size;
+    print_node(current);
+    if (current_end == (char *)current->next) {
       // Merge the current block with the previous one
-      previous->size += current->size + sizeof(node_t);
-      previous->next = current->next;
+      current->size += sizeof(node_t) + current->next->size; 
+      current->next = current->next->next; 
       printf("Merge was successful\n");
+      continue;
     } 
-    else 
-    {
-      // No coalescing occurred, move to the next block
-      printf("Merge was unsuccessful\n");
-      previous = current;
-
-    }
-
     current = current->next;
   }
 }
@@ -119,62 +134,57 @@ void init_heap() {
 }
 
 void *first_fit(size_t size_req) {
+  
     node_t *prev = NULL;
     node_t *listitem = __head;
 
+    node_t *new_node;
+
     while (listitem != NULL) 
     {
-        // total size required
-        size_t total_size_req = size_req + sizeof(header_t);
-
-        if (listitem->size >= total_size_req) 
-        { 
-            size_t orig_size = listitem->size;
-
-            printf("Block of right size found. Original size is: %lu\n", orig_size);
-
-            // check if there is enough room for another allocation
-            if (orig_size - total_size_req >= sizeof(node_t) - 16)
-            {
-                // split
-                node_t *new_node = (node_t *)((char *)listitem + total_size_req);
-                new_node->size = orig_size - total_size_req;
-                new_node->next = listitem->next; // update the next pointer
-                listitem->next = new_node; // update the next pointer 
-                listitem->size = total_size_req - sizeof(node_t); // update the size 
-
-                printf("New block size after split: %lu\n", new_node->size);
-            } 
-            else 
-            {
-              // no split occurs
-              total_size_req = orig_size;  
-              printf("Size after allocation: %lu\n", listitem->size);
-            }
-
-            // update pointers
-            if (prev) 
-            {
-              prev->next = (orig_size == total_size_req) ? listitem->next : (node_t *)((char *)listitem + total_size_req);
-            } 
-            else 
-            {
-              __head = (orig_size == total_size_req) ? listitem->next : (node_t *)((char *)listitem + total_size_req);
-            }
-
-            // create and fill a new header
-            header_t *alloc_header = (header_t *)listitem;
-            alloc_header->size = size_req;
-            alloc_header->magic = HEAPMAGIC; // Set the magic number for the allocated block
-
-            printf("Returning allocated block @ %p\n", (char *)alloc_header + sizeof(header_t));
-
-            return (char *)alloc_header + sizeof(header_t);
+      printf("[node @ %p | free region @ %p size: %lu next: %p]\n", listitem, (char *)listitem + sizeof(node_t), listitem->size, listitem->next);
+      if (listitem->size >= size_req) {
+                
+        size_t orig_size = listitem->size; 
+        if (listitem->size - size_req >= sizeof(header_t) ) {
+          // Splitting Logic
+          new_node = (node_t *)((char *)listitem + size_req + sizeof(header_t));
+          new_node->size = orig_size - size_req - sizeof(header_t); 
+          new_node->next = listitem->next; 
+          listitem->size = size_req; 
+          printf("[node @ %p | free region @ %p size: %lu next: %p]\n", listitem, (char *)listitem + sizeof(node_t), listitem->size, listitem->next);
+          printf("Splitting block. New block size: %lu\n", new_node->size);
         }
+          else 
+        {
+          size_req = orig_size;  // Don't split the block (use whole block)
+                
+          printf("Not splitting block. Size after allocation: %lu\n", listitem->size);
+        }
+
+        // update pointers
+        if (prev) {
+          prev->next = (orig_size == size_req) ? listitem->next : new_node;
+        } else {
+          __head = (orig_size == size_req) ? listitem->next : new_node;
+        }
+
+        // create and fill a new header
+        header_t *alloc_header = (header_t *)listitem;
+        alloc_header->size = size_req;
+        alloc_header->magic = HEAPMAGIC; // Set the magic number for the allocated block
+        printf("Allocation header filled with magic: %08lx\n", alloc_header->magic);
+
+        printf("Returning allocated block @ %p\n", (char *)alloc_header + sizeof(header_t));
+
+        print_freelist_from(__head);
+        return (char *)alloc_header + sizeof(header_t);
+      }
 
         prev = listitem;
         listitem = listitem->next;
     }
+
     printf("No block fits.\n");
     return NULL;
 }
@@ -222,15 +232,16 @@ void myfree(void *ptr) {
     return;
   }
 
-  size_t total_size = header->size + sizeof(header_t);
-  node_t *new_node = (node_t *)header;
-  new_node->size = total_size - sizeof(header_t);
-  new_node->next = __head;
+    // Convert the allocated block to a node_t so it can be added to the free list
+    node_t *freed_block = (node_t *)header;
 
-  // Update __head to point to the new free region
-  __head = new_node;
+    // Adjust the size for the free block to include the header's size
+    freed_block->size = header->size;
 
-  coalesce_freelist();
+    // Attach the freed block to the beginning of the list
+    freed_block->next = __head;
+    __head = freed_block;
 
-  if (DEBUG) printf("Freed and coalesced. __head is now @ %p\n", __head);
+    sort_freelist();
+    //coalesce_freelist();
 }
